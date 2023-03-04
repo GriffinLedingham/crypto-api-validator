@@ -111,6 +111,7 @@ async function validateData() {
     order: "desc",
     limit: definedSales.length,
     sold_after: variables.timestamp.from,
+    sold_before: variables.timestamp.to,
   };
   const tResponse = (await (
     await fetch(`${transposeApiUrl}?${querystring.stringify(tParams)}`, {
@@ -162,6 +163,8 @@ async function validateData() {
       timestamp: sale.timestamp,
     }))
     .filter((sale) => sale.timestamp > variables.timestamp.from)
+    .filter((sale) => sale.timestamp < variables.timestamp.to)
+
     .sort((a, b) => a.timestamp - b.timestamp);
 
   // get the most recent N sales, where N is number of Defined sales
@@ -241,12 +244,14 @@ function validateSales(source1Sales: Sale[], source2Sales: Sale[]) {
     }
     if (
       !found &&
-      (source2Sale.blockNumber === undefined ||
-        lastSource1BlockNumber === undefined ||
-        source2Sale.blockNumber > lastSource1BlockNumber ||
-        source2Sale.timestamp === undefined ||
-        lastSource1Timestamp === undefined ||
-        source2Sale.timestamp > lastSource1Timestamp)
+      ((source2Sale.source === "Reservoir" &&
+        source2Sale.timestamp !== undefined &&
+        lastSource1Timestamp !== undefined &&
+        source2Sale.timestamp > lastSource1Timestamp) ||
+        (source2Sale.source === "Transpose" &&
+          source2Sale.blockNumber !== undefined &&
+          lastSource1BlockNumber !== undefined &&
+          source2Sale.blockNumber > lastSource1BlockNumber))
     ) {
       missingSource1Sales.push(source2Sale);
     }
