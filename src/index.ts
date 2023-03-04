@@ -113,16 +113,20 @@ async function validateData() {
     sold_after: variables.timestamp.from,
     sold_before: variables.timestamp.to,
   };
-  const tResponse = (await (
-    await fetch(`${transposeApiUrl}?${querystring.stringify(tParams)}`, {
-      method: "GET",
-      headers: {
-        "X-API-KEY": transposeApiKey,
-      },
-    })
-  ).json()) as {
-    results: TransposeNftEvent[];
-  };
+  const tResponse =
+    // Handle transpose breaking on 0 limit
+    tParams.limit === 0
+      ? { results: [] }
+      : ((await (
+          await fetch(`${transposeApiUrl}?${querystring.stringify(tParams)}`, {
+            method: "GET",
+            headers: {
+              "X-API-KEY": transposeApiKey,
+            },
+          })
+        ).json()) as {
+          results: TransposeNftEvent[];
+        });
   const transposeSales = tResponse.results
     .map((sale) => ({
       source: "Transpose",
@@ -179,18 +183,29 @@ async function validateData() {
     console.log("Raw Reservoir Sales: ", trimmedReservoirSales);
   }
 
-  validateSales(definedSales, transposeSales);
-  validateSales(definedSales, trimmedReservoirSales);
+  if (definedSales.length === 0)
+    console.log("No sales found for Defined in this time period.");
+  if (transposeSales.length === 0)
+    console.log("No sales found for Transpose in this time period.");
+  if (trimmedReservoirSales.length === 0)
+    console.log("No sales found for Reservoir in this time period.");
+  validateSales(definedSales, "Defined", transposeSales, "Transpose");
+  validateSales(definedSales, "Defined", trimmedReservoirSales, "Reservoir");
 }
 
 (async () => {
   validateData();
 })();
 
-function validateSales(source1Sales: Sale[], source2Sales: Sale[]) {
+function validateSales(
+  source1Sales: Sale[],
+  source1: string,
+  source2Sales: Sale[],
+  source2: string
+) {
   const lastSource1BlockNumber =
-    source1Sales[source1Sales.length - 1].blockNumber;
-  const lastSource1Timestamp = source1Sales[source1Sales.length - 1].timestamp;
+    source1Sales[source1Sales.length - 1]?.blockNumber;
+  const lastSource1Timestamp = source1Sales[source1Sales.length - 1]?.timestamp;
 
   let missingSource1Sales = [];
   let missingSource2Sales = [];
@@ -257,22 +272,20 @@ function validateSales(source1Sales: Sale[], source2Sales: Sale[]) {
     }
   }
 
-  console.log(
-    `============ Compare ${source1Sales[0].source} & ${source2Sales[0].source} ============`
-  );
+  console.log(`============ Compare ${source1} & ${source2} ============`);
   if (missingSource1Sales.length > 0)
     console.log(
-      `${missingSource1Sales.length} items missing from ${source1Sales[0].source}: `,
+      `${missingSource1Sales.length} items missing from ${source1}: `,
       missingSource1Sales
     );
   if (missingSource2Sales.length > 0)
     console.log(
-      `${missingSource2Sales.length} items missing from ${source2Sales[0].source}: `,
+      `${missingSource2Sales.length} items missing from ${source2}: `,
       missingSource2Sales
     );
   if (mismatchedSales.length > 0)
     console.log(
-      `${source1Sales[0].source} & ${source2Sales[0].source} Mismatched sales items:`,
+      `${source1} & ${source2} Mismatched sales items:`,
       mismatchedSales
     );
   if (
