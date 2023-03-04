@@ -78,13 +78,14 @@ async function validateData() {
       }
     }`,
   };
-  const options = {
-    method: "POST",
-    headers,
-    body: JSON.stringify(requestBody),
-  };
 
-  const response = (await (await fetch(definedApiUrl, options)).json()) as {
+  const response = (await (
+    await fetch(definedApiUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    })
+  ).json()) as {
     data: { getNftEvents: { items: DefinedNftEvent[] } };
   };
   const definedSales = response.data.getNftEvents.items
@@ -100,33 +101,24 @@ async function validateData() {
       transactionHash: sale.transactionHash,
       logIndex: sale.logIndex,
       timestamp: sale.timestamp,
-    }));
-
-  // To check if Defined sales are missing any transpose sales, that are from a block number higher than the last blockNumber in a Defined sale
-  const lastDefinedBlockNumber =
-    definedSales[definedSales.length - 1].blockNumber;
-  // To check if Defined sales are missing any Reservoir sales (Reservoir doesn't expose blockNumber), that are from a timestamp higher than the last timestamp in a Defined sale
-  const lastDefinedTimestamp = definedSales[definedSales.length - 1].timestamp;
-
-  definedSales
+    }))
     .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
     .sort((a, b) => a.tokenId.localeCompare(b.tokenId));
 
-  const params = {
+  const tParams = {
     chain_id: "ethereum",
     contract_address: contractAddress,
     order: "desc",
     limit: definedSales.length,
-  };
-  var tHeaders = {
-    "X-API-KEY": transposeApiKey,
-  };
-  const tOptions = {
-    method: "GET",
-    headers: tHeaders,
+    sold_after: variables.timestamp.from,
   };
   const tResponse = (await (
-    await fetch(`${transposeApiUrl}?${querystring.stringify(params)}`, tOptions)
+    await fetch(`${transposeApiUrl}?${querystring.stringify(tParams)}`, {
+      method: "GET",
+      headers: {
+        "X-API-KEY": transposeApiKey,
+      },
+    })
   ).json()) as {
     results: TransposeNftEvent[];
   };
@@ -145,93 +137,23 @@ async function validateData() {
     .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
     .sort((a, b) => a.tokenId.localeCompare(b.tokenId));
 
-  let missingTransposeSales = [];
-  let mismatchedSales = [];
+  validateSales(definedSales, transposeSales);
 
-  if (definedSales.length !== transposeSales.length) {
-    console.log("###");
-    console.log("Transpose & Defined sales counts do not match");
-    console.log("Defined", definedSales.length);
-    console.log("Transpose", transposeSales.length);
-    console.log("###");
-  }
-
-  // Ensure that definedSales and transposeSales are the same for all cases of matching tokenId & transactionHash
-  for (let i = 0; i < definedSales.length; i++) {
-    const definedSale = definedSales[i];
-    let found = false;
-    for (let j = 0; j < transposeSales.length; j++) {
-      const transposeSale = transposeSales[j];
-      if (
-        definedSale.tokenId === transposeSale.tokenId &&
-        definedSale.transactionHash === transposeSale.transactionHash &&
-        definedSale.maker === transposeSale.maker &&
-        definedSale.taker === transposeSale.taker
-      ) {
-        found = true;
-        if (
-          definedSale.contractAddress !== transposeSale.contractAddress ||
-          definedSale.price !== transposeSale.price ||
-          definedSale.blockNumber !== transposeSale.blockNumber
-        ) {
-          mismatchedSales.push({
-            definedSale,
-            transposeSale,
-          });
-        }
-      }
-    }
-    if (!found) {
-      missingTransposeSales.push(definedSale);
-    }
-  }
-
-  let missingDefinedSales = [];
-
-  for (let i = 0; i < transposeSales.length; i++) {
-    const transposeSale = transposeSales[i];
-    let found = false;
-    for (let j = 0; j < definedSales.length; j++) {
-      const definedSale = definedSales[j];
-      if (
-        definedSale.tokenId === transposeSale.tokenId &&
-        definedSale.transactionHash === transposeSale.transactionHash &&
-        definedSale.maker === transposeSale.maker &&
-        definedSale.taker === transposeSale.taker
-      ) {
-        found = true;
-      }
-    }
-    if (!found && transposeSale.blockNumber > lastDefinedBlockNumber) {
-      missingDefinedSales.push(transposeSale);
-    }
-  }
-
-  console.log("Items missing from Transpose: ", missingTransposeSales);
-  console.log("Items missing from Defined: ", missingDefinedSales);
-  console.log("Mismatched sales items:", mismatchedSales);
-  console.log("Sales missing from Tranpose: ", missingTransposeSales.length);
-  console.log("Sales missing from Defined: ", missingDefinedSales.length);
-  console.log("Mismatched sales: ", mismatchedSales.length);
-
-  const rHeaders = {
-    "X-API-KEY": reservoirApiKey,
-  };
-  const rOptions = {
-    method: "GET",
-    headers: rHeaders,
-  };
   const rResponse = (await (
     await fetch(
-      `${reservoirApiUrl}?collection=${contractAddress}&limit=${definedSales.length}&sortBy=eventTimestamp&types=sale`,
-      rOptions
+      `${reservoirApiUrl}?collection=${contractAddress}&sortBy=eventTimestamp&types=sale`,
+      {
+        method: "GET",
+        headers: {
+          "X-API-KEY": reservoirApiKey,
+        },
+      }
     )
   ).json()) as {
     activities: ReservoirNftEvent[];
   };
-
-  const reservoirSales = rResponse.activities.map(
-    (sale: ReservoirNftEvent) => ({
+  const reservoirSales = rResponse.activities
+    .map((sale: ReservoirNftEvent) => ({
       source: "Reservoir",
       contractAddress: sale.contract.toLowerCase(),
       tokenId: sale.token.tokenId.toString(),
@@ -240,86 +162,17 @@ async function validateData() {
       taker: sale.toAddress.toLowerCase(),
       transactionHash: sale.txHash,
       timestamp: sale.timestamp,
-    })
-  );
-  // sort by transaction hash and token id
-  reservoirSales.sort((a, b) =>
-    a.transactionHash.localeCompare(b.transactionHash)
-  );
-  reservoirSales.sort((a, b) => a.tokenId.localeCompare(b.tokenId));
+    }))
+    .filter((sale) => sale.timestamp > variables.timestamp.from)
+    .sort((a, b) => a.timestamp - b.timestamp);
 
-  // compare to defined
-  let missingReservoirSales = [];
-  let mismatchedReservoirSales = [];
+  // get the most recent N sales, where N is number of Defined sales
+  const trimmedReservoirSales = reservoirSales
+    .slice(reservoirSales.length - definedSales.length)
+    .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
+    .sort((a, b) => a.tokenId.localeCompare(b.tokenId));
 
-  if (definedSales.length !== reservoirSales.length) {
-    console.log("###");
-    console.log("Reservoir & Defined sales counts do not match");
-    console.log("Defined", definedSales.length);
-    console.log("Reservoir", reservoirSales.length);
-    console.log("###");
-  }
-
-  // Ensure that definedSales and reservoirSales are the same for all cases of matching tokenId & transactionHash
-  for (let i = 0; i < definedSales.length; i++) {
-    const definedSale = definedSales[i];
-    let found = false;
-    for (let j = 0; j < reservoirSales.length; j++) {
-      const reservoirSale = reservoirSales[j];
-      if (
-        definedSale.tokenId === reservoirSale.tokenId &&
-        definedSale.transactionHash === reservoirSale.transactionHash &&
-        definedSale.maker === reservoirSale.maker &&
-        definedSale.taker === reservoirSale.taker
-      ) {
-        found = true;
-        if (
-          definedSale.contractAddress !== reservoirSale.contractAddress ||
-          definedSale.price !== reservoirSale.price
-        ) {
-          mismatchedReservoirSales.push({
-            definedSale,
-            reservoirSale,
-          });
-        }
-      }
-    }
-    if (!found) {
-      missingReservoirSales.push(definedSale);
-    }
-  }
-
-  let missingDefinedReservoirSales = [];
-
-  // check if Defined sales are missing any reservoir sales, that are from a block number higher than the last blockNumber in a Defined sale
-  for (let i = 0; i < reservoirSales.length; i++) {
-    const reservoirSale = reservoirSales[i];
-    let found = false;
-    for (let j = 0; j < definedSales.length; j++) {
-      const definedSale = definedSales[j];
-      if (
-        definedSale.tokenId === reservoirSale.tokenId &&
-        definedSale.transactionHash === reservoirSale.transactionHash &&
-        definedSale.maker === reservoirSale.maker &&
-        definedSale.taker === reservoirSale.taker
-      ) {
-        found = true;
-      }
-    }
-    if (!found && reservoirSale.timestamp > lastDefinedTimestamp) {
-      missingDefinedReservoirSales.push(reservoirSale);
-    }
-  }
-
-  console.log("Items missing from Reservoir: ", missingReservoirSales);
-  console.log("Items missing from Defined: ", missingDefinedReservoirSales);
-  console.log("Mismatched sales items:", mismatchedReservoirSales);
-  console.log("Sales missing from Reservoir: ", missingReservoirSales.length);
-  console.log(
-    "Sales missing from Defined: ",
-    missingDefinedReservoirSales.length
-  );
-  console.log("Mismatched sales: ", mismatchedReservoirSales.length);
+  validateSales(definedSales, trimmedReservoirSales);
 }
 
 (async () => {
@@ -327,6 +180,10 @@ async function validateData() {
 })();
 
 function validateSales(source1Sales: Sale[], source2Sales: Sale[]) {
+  const lastSource1BlockNumber =
+    source1Sales[source1Sales.length - 1].blockNumber;
+  const lastSource1Timestamp = source1Sales[source1Sales.length - 1].timestamp;
+
   let missingSource1Sales = [];
   let missingSource2Sales = [];
   let mismatchedSales = [];
@@ -347,7 +204,9 @@ function validateSales(source1Sales: Sale[], source2Sales: Sale[]) {
         if (
           source1Sale.contractAddress !== source2Sale.contractAddress ||
           source1Sale.price !== source2Sale.price ||
-          source1Sale.blockNumber !== source2Sale.blockNumber
+          (source1Sale.blockNumber !== undefined &&
+            source2Sale.blockNumber !== undefined &&
+            source1Sale.blockNumber !== source2Sale.blockNumber)
         ) {
           mismatchedSales.push({
             source1Sale,
@@ -375,15 +234,42 @@ function validateSales(source1Sales: Sale[], source2Sales: Sale[]) {
         found = true;
       }
     }
-    if (!found) {
+    if (
+      !found &&
+      (source2Sale.blockNumber === undefined ||
+        lastSource1BlockNumber === undefined ||
+        source2Sale.blockNumber > lastSource1BlockNumber ||
+        source2Sale.timestamp === undefined ||
+        lastSource1Timestamp === undefined ||
+        source2Sale.timestamp > lastSource1Timestamp)
+    ) {
       missingSource1Sales.push(source2Sale);
     }
   }
 
-  console.log("Items missing from Source 1: ", missingSource1Sales);
-  console.log("Items missing from Source 2: ", missingSource2Sales);
-  console.log("Mismatched sales items:", mismatchedSales);
-  console.log("Sales missing from Source 1: ", missingSource1Sales.length);
-  console.log("Sales missing from Source 2: ", missingSource2Sales.length);
-  console.log("Mismatched sales: ", mismatchedSales.length);
+  console.log(
+    `============ Compare ${source1Sales[0].source} & ${source2Sales[0].source} ============`
+  );
+  if (missingSource1Sales.length > 0)
+    console.log(
+      `${missingSource1Sales.length} items missing from ${source1Sales[0].source}: `,
+      missingSource1Sales
+    );
+  if (missingSource2Sales.length > 0)
+    console.log(
+      `${missingSource2Sales.length} items missing from ${source2Sales[0].source}: `,
+      missingSource2Sales
+    );
+  if (mismatchedSales.length > 0)
+    console.log(
+      `${source1Sales[0].source} & ${source2Sales[0].source} Mismatched sales items:`,
+      mismatchedSales
+    );
+  if (
+    missingSource1Sales.length === 0 &&
+    missingSource2Sales.length === 0 &&
+    mismatchedSales.length === 0
+  ) {
+    console.log("No discrepancies found!");
+  }
 }

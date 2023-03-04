@@ -76,7 +76,7 @@ export type Sale = {
   // taker: sale.toAddress.toLowerCase(),
   // transactionHash: sale.txHash,
   // timestamp: sale.timestamp,
-  source: "Reservoir" | "Defined" | "Transpose";
+  source: string;
   contractAddress: string;
   tokenId: string;
   price: string;
