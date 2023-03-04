@@ -93,7 +93,7 @@ async function validateData() {
     .map((sale: DefinedNftEvent) => ({
       source: "Defined",
       contractAddress: sale.contractAddress.toLowerCase(),
-      tokenId: sale.tokenId,
+      tokenId: parseInt(sale.tokenId),
       price: sale.individualTradePrice,
       blockNumber: sale.blockNumber,
       maker: sale.maker.toLowerCase(),
@@ -103,7 +103,7 @@ async function validateData() {
       timestamp: sale.timestamp,
     }))
     .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
-    .sort((a, b) => a.tokenId.localeCompare(b.tokenId));
+    .sort((a, b) => a.tokenId - b.tokenId);
 
   const tParams = {
     chain_id: "ethereum",
@@ -126,7 +126,7 @@ async function validateData() {
     .map((sale) => ({
       source: "Transpose",
       contractAddress: sale.contract_address.toLowerCase(),
-      tokenId: sale.token_id.toString(),
+      tokenId: sale.token_id,
       price: sale.eth_price.toString(),
       blockNumber: sale.block_number,
       maker: sale.seller.toLowerCase(),
@@ -135,9 +135,7 @@ async function validateData() {
     }))
     // sort by transaction hash and token id
     .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
-    .sort((a, b) => a.tokenId.localeCompare(b.tokenId));
-
-  validateSales(definedSales, transposeSales);
+    .sort((a, b) => a.tokenId - b.tokenId);
 
   const rResponse = (await (
     await fetch(
@@ -156,7 +154,7 @@ async function validateData() {
     .map((sale: ReservoirNftEvent) => ({
       source: "Reservoir",
       contractAddress: sale.contract.toLowerCase(),
-      tokenId: sale.token.tokenId.toString(),
+      tokenId: parseInt(sale.token.tokenId),
       price: sale.price.toString(),
       maker: sale.fromAddress.toLowerCase(),
       taker: sale.toAddress.toLowerCase(),
@@ -170,8 +168,13 @@ async function validateData() {
   const trimmedReservoirSales = reservoirSales
     .slice(reservoirSales.length - definedSales.length)
     .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
-    .sort((a, b) => a.tokenId.localeCompare(b.tokenId));
+    .sort((a, b) => a.tokenId - b.tokenId);
 
+  console.log("Raw Defined Sales: ", definedSales);
+  console.log("Raw Transpose Sales: ", transposeSales);
+  console.log("Raw Reservoir Sales: ", trimmedReservoirSales);
+
+  validateSales(definedSales, transposeSales);
   validateSales(definedSales, trimmedReservoirSales);
 }
 

@@ -78,7 +78,7 @@ export type Sale = {
   // timestamp: sale.timestamp,
   source: string;
   contractAddress: string;
-  tokenId: string;
+  tokenId: number;
   price: string;
   maker: string;
   taker: string;
