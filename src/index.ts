@@ -170,9 +170,11 @@ async function validateData() {
     .sort((a, b) => a.transactionHash.localeCompare(b.transactionHash))
     .sort((a, b) => a.tokenId - b.tokenId);
 
-  console.log("Raw Defined Sales: ", definedSales);
-  console.log("Raw Transpose Sales: ", transposeSales);
-  console.log("Raw Reservoir Sales: ", trimmedReservoirSales);
+  if (process.env.DEBUG) {
+    console.log("Raw Defined Sales: ", definedSales);
+    console.log("Raw Transpose Sales: ", transposeSales);
+    console.log("Raw Reservoir Sales: ", trimmedReservoirSales);
+  }
 
   validateSales(definedSales, transposeSales);
   validateSales(definedSales, trimmedReservoirSales);

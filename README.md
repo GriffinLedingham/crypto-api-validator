@@ -11,6 +11,8 @@ A simple (hacked together) script to compare NFT activity API's for differences 
 ## Usage
 
 - `yarn start COLLECTION_ADDRESS` - Compares data for the provided collection address. ie. `0xed5af388653567af2f388e6224dc7c4b3241c544`
+- `yarn debug COLLECTION_ADDRESS` - Operates the same as `yarn start` but outputs full responses for each API (used to debug inconsistencies)
+
 - `yarn bayc` - Compares data for the Bored Ape Yacht Club collection
 - `yarn azuki` - Compares data for the Azuki collection
 - `yarn otherdeed` - Compares data for the Otherdeed collection

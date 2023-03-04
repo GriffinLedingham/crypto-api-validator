@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "ts-node src/index.ts",
+    "debug": "DEBUG=true ts-node src/index.ts",
     "bayc": "ts-node src/index.ts 0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d",
     "mayc": "ts-node src/index.ts 0x60e4d786628fea6478f785a6d7e704777c86a7c6",
     "parallel": "ts-node src/index.ts 0x76be3b62873462d2142405439777e971754e8e77",
