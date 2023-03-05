@@ -144,7 +144,7 @@ async function validateData() {
 
   const rResponse = (await (
     await fetch(
-      `${reservoirApiUrl}?collection=${contractAddress}&sortBy=eventTimestamp&types=sale`,
+      `${reservoirApiUrl}?collection=${contractAddress}&limit=50&sortBy=eventTimestamp&types=sale`,
       {
         method: "GET",
         headers: {
